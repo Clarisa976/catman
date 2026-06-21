@@ -1,0 +1,631 @@
+{
+  "info": {
+    "name": "CatManReaders",
+    "description": "Manual API smoke collection for CatManReaders local development.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8000/api",
+      "type": "string"
+    },
+    {
+      "key": "token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "work_id",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "physical_volume_id",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "digital_platform_id",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "digital_series_id",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "digital_tracking_id",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "alert_id",
+      "value": "1",
+      "type": "string"
+    }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Register",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.token) pm.collectionVariables.set('token', json.token);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Usagi\",\n  \"email\": \"usagi@example.com\",\n  \"password\": \"password123\",\n  \"password_confirmation\": \"password123\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/register",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "register"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.token) pm.collectionVariables.set('token', json.token);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"usagi@example.com\",\n  \"password\": \"password123\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/login",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "login"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Me",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/me",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "me"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Physical Catalog",
+      "item": [
+        {
+          "name": "Create Work",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.data && json.data.id) pm.collectionVariables.set('work_id', json.data.id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Haikyuu!!\",\n  \"author\": \"Haruichi Furudate\",\n  \"type\": \"manga\",\n  \"status\": \"completed\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/works",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "works"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Physical Volume",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.data && json.data.id) pm.collectionVariables.set('physical_volume_id', json.data.id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"volume_number\": 1,\n  \"title\": \"Volume 1\",\n  \"language\": \"espanol\",\n  \"country\": \"Espana\",\n  \"publisher\": \"Planeta Comic\",\n  \"isbn\": \"9781234567890\",\n  \"ean\": \"9781234567890\",\n  \"price\": 9.95,\n  \"currency\": \"EUR\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/works/{{work_id}}/physical-volumes",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "works",
+                "{{work_id}}",
+                "physical-volumes"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Add Volume To My Collection",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"physical_volume_id\": {{physical_volume_id}},\n  \"ownership_status\": \"owned\",\n  \"reading_status\": \"not_started\",\n  \"is_travel_memory\": false,\n  \"location\": \"Shelf A\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/my/physical-collection",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "my",
+                "physical-collection"
+              ]
+            }
+          }
+        },
+        {
+          "name": "List My Collection",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/my/physical-collection?per_page=15",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "my",
+                "physical-collection"
+              ],
+              "query": [
+                {
+                  "key": "per_page",
+                  "value": "15"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Physical Tracking",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"work_id\": {{work_id}},\n  \"follow_physical_releases\": true,\n  \"preferred_language\": \"espanol\",\n  \"preferred_country\": \"Espana\",\n  \"last_owned_volume_number\": 1,\n  \"notify_new_volume\": true\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/my/work-tracking",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "my",
+                "work-tracking"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Book Lookup",
+      "item": [
+        {
+          "name": "Lookup By ISBN",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/book-lookup/isbn/9780316073875",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "book-lookup",
+                "isbn",
+                "9780316073875"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Search By Title",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/book-lookup/search?query=Yotsuba",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "book-lookup",
+                "search"
+              ],
+              "query": [
+                {
+                  "key": "query",
+                  "value": "Yotsuba"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Import Lookup Result",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.work && json.work.id) pm.collectionVariables.set('work_id', json.work.id);",
+                  "if (json.physical_volume && json.physical_volume.id) pm.collectionVariables.set('physical_volume_id', json.physical_volume.id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Yotsuba&!\",\n  \"volume_title\": \"Volume 1\",\n  \"authors\": [\"Kiyohiko Azuma\"],\n  \"publisher\": \"Yen Press\",\n  \"published_date\": \"2009-09-15\",\n  \"language\": \"ingles\",\n  \"country\": \"Estados Unidos\",\n  \"isbn_13\": \"9780316073875\",\n  \"ean\": \"9780316073875\",\n  \"volume_number\": 1,\n  \"provider\": \"open_library\",\n  \"provider_id\": \"/works/OL45804W\",\n  \"provider_url\": \"https://openlibrary.org/works/OL45804W\",\n  \"raw_data\": {},\n  \"add_to_collection\": false\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/book-lookup/import",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "book-lookup",
+                "import"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Digital",
+      "item": [
+        {
+          "name": "List Digital Platforms",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/digital-platforms",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "digital-platforms"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Digital Series",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.data && json.data.id) pm.collectionVariables.set('digital_series_id', json.data.id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"platform_id\": {{digital_platform_id}},\n  \"title\": \"Under the Oak Tree\",\n  \"platform_url\": \"https://example.test/series\",\n  \"language\": \"ingles\",\n  \"status\": \"ongoing\",\n  \"latest_episode_detected\": 90\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/digital-series",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "digital-series"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Digital Tracking",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.data && json.data.id) pm.collectionVariables.set('digital_tracking_id', json.data.id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"digital_series_id\": {{digital_series_id}},\n  \"reading_status\": \"reading\",\n  \"follow_updates\": true,\n  \"notify_new_episode\": true,\n  \"last_episode_read\": 12,\n  \"last_episode_seen\": 15\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/my/digital-tracking",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "my",
+                "digital-tracking"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Alerts",
+      "item": [
+        {
+          "name": "Create Alert",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.data && json.data.id) pm.collectionVariables.set('alert_id', json.data.id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"alert_type\": \"system\",\n  \"title\": \"Welcome\",\n  \"message\": \"CatManReaders is ready.\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/my/alerts",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "my",
+                "alerts"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Mark Alert As Read",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/my/alerts/{{alert_id}}/read",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "my",
+                "alerts",
+                "{{alert_id}}",
+                "read"
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
