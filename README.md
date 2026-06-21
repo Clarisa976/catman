@@ -23,6 +23,33 @@ La API queda en `http://localhost:8000/api`.
 
 Adminer queda disponible en `http://localhost:8080`.
 
+## Docker, migraciones y tests
+
+Levantar servicios:
+
+```bash
+docker compose up -d --build
+```
+
+Ejecutar migraciones y seeders:
+
+```bash
+docker compose exec app php artisan migrate --seed
+```
+
+Recrear la base local desde cero:
+
+```bash
+docker compose exec app php artisan migrate:fresh --seed
+```
+
+Ejecutar tests:
+
+```bash
+php artisan test
+docker compose exec app php artisan test
+```
+
 Para forzar la suite contra PostgreSQL dentro de Docker:
 
 ```bash
@@ -91,3 +118,9 @@ GOOGLE_BOOKS_API_KEY=
 ```
 
 Open Library se consulta solo para metadatos publicos. No se descargan contenidos protegidos ni se usan APIs privadas.
+
+## Documentacion
+
+- API completa: `docs/API.md`
+- Flujos de uso: `docs/FLOWS.md`
+- Coleccion Postman: `docs/postman/CatManReaders.postman_collection.json`
