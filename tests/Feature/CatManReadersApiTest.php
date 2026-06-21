@@ -7,6 +7,7 @@ use App\Models\DigitalPlatform;
 use App\Models\DigitalSeries;
 use App\Models\PhysicalVolume;
 use App\Models\User;
+use App\Models\UserDigitalTracking;
 use App\Models\UserPhysicalCollection;
 use App\Models\Work;
 use Database\Seeders\DigitalPlatformSeeder;
@@ -74,7 +75,7 @@ class CatManReadersApiTest extends TestCase
             'status' => 'completed',
         ])
             ->assertCreated()
-            ->assertJsonPath('title', 'Haikyuu!!');
+            ->assertJsonPath('data.title', 'Haikyuu!!');
 
         $this->assertDatabaseHas('works', ['title' => 'Haikyuu!!']);
     }
@@ -92,7 +93,7 @@ class CatManReadersApiTest extends TestCase
             'isbn' => '9781234567890',
         ])
             ->assertCreated()
-            ->assertJsonPath('volume_number', '8.00');
+            ->assertJsonPath('data.volume_number', '8.00');
 
         $this->assertDatabaseHas('physical_volumes', [
             'work_id' => $work->id,
@@ -114,8 +115,8 @@ class CatManReadersApiTest extends TestCase
             'purchase_country' => 'Japon',
         ])
             ->assertCreated()
-            ->assertJsonPath('user_id', $user->id)
-            ->assertJsonPath('physical_volume_id', $volume->id);
+            ->assertJsonPath('data.user_id', $user->id)
+            ->assertJsonPath('data.physical_volume_id', $volume->id);
 
         $this->assertDatabaseHas('user_physical_collections', [
             'user_id' => $user->id,
@@ -161,9 +162,9 @@ class CatManReadersApiTest extends TestCase
             'last_owned_volume_number' => 4,
         ])
             ->assertCreated()
-            ->assertJsonPath('user_id', $user->id)
-            ->assertJsonPath('work_id', $work->id)
-            ->assertJsonPath('last_owned_volume_number', '4.00');
+            ->assertJsonPath('data.user_id', $user->id)
+            ->assertJsonPath('data.work_id', $work->id)
+            ->assertJsonPath('data.last_owned_volume_number', '4.00');
 
         $this->assertDatabaseHas('user_work_trackings', [
             'user_id' => $user->id,
@@ -196,14 +197,147 @@ class CatManReadersApiTest extends TestCase
             'latest_episode_detected' => 125,
         ])
             ->assertCreated()
-            ->assertJsonPath('platform_id', $platform->id)
-            ->assertJsonPath('title', 'A Business Proposal')
-            ->assertJsonPath('latest_episode_detected', '125.00');
+            ->assertJsonPath('data.platform_id', $platform->id)
+            ->assertJsonPath('data.title', 'A Business Proposal')
+            ->assertJsonPath('data.latest_episode_detected', '125.00');
 
         $this->assertDatabaseHas('digital_series', [
             'platform_id' => $platform->id,
             'title' => 'A Business Proposal',
         ]);
+    }
+
+    public function test_works_are_listed_with_pagination_data(): void
+    {
+        Sanctum::actingAs(User::factory()->create());
+        Work::insert(collect(range(1, 3))->map(fn (int $i): array => [
+            'title' => 'Work '.$i,
+            'type' => 'manga',
+            'status' => 'unknown',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ])->all());
+
+        $this->getJson('/api/works?per_page=2')
+            ->assertOk()
+            ->assertJsonStructure(['data', 'links', 'meta'])
+            ->assertJsonCount(2, 'data')
+            ->assertJsonPath('meta.per_page', 2);
+    }
+
+    public function test_works_can_be_filtered_by_search(): void
+    {
+        Sanctum::actingAs(User::factory()->create());
+        Work::create(['title' => 'Frieren', 'author' => 'Kanehito Yamada']);
+        Work::create(['title' => 'Dungeon Meshi', 'author' => 'Ryoko Kui']);
+
+        $this->getJson('/api/works?search=Frieren')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.title', 'Frieren');
+    }
+
+    public function test_per_page_is_capped_at_100(): void
+    {
+        Sanctum::actingAs(User::factory()->create());
+        Work::insert(collect(range(1, 105))->map(fn (int $i): array => [
+            'title' => 'Paged Work '.$i,
+            'type' => 'manga',
+            'status' => 'unknown',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ])->all());
+
+        $this->getJson('/api/works?per_page=200')
+            ->assertOk()
+            ->assertJsonCount(100, 'data')
+            ->assertJsonPath('meta.per_page', 100);
+    }
+
+    public function test_my_physical_collection_can_be_filtered_by_status(): void
+    {
+        $user = User::factory()->create();
+        Sanctum::actingAs($user);
+        $owned = $this->createPhysicalVolume('Owned Volume');
+        $wishlist = $this->createPhysicalVolume('Wishlist Volume');
+
+        UserPhysicalCollection::create([
+            'user_id' => $user->id,
+            'physical_volume_id' => $owned->id,
+            'ownership_status' => 'owned',
+            'reading_status' => 'read',
+        ]);
+        UserPhysicalCollection::create([
+            'user_id' => $user->id,
+            'physical_volume_id' => $wishlist->id,
+            'ownership_status' => 'wishlist',
+            'reading_status' => 'not_started',
+        ]);
+
+        $this->getJson('/api/my/physical-collection?ownership_status=wishlist')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.ownership_status', 'wishlist');
+    }
+
+    public function test_my_physical_collection_response_uses_data_and_excludes_other_users(): void
+    {
+        $owner = User::factory()->create();
+        $other = User::factory()->create();
+        $ownVolume = $this->createPhysicalVolume('Mine');
+        $otherVolume = $this->createPhysicalVolume('Theirs');
+        $ownItem = UserPhysicalCollection::create([
+            'user_id' => $owner->id,
+            'physical_volume_id' => $ownVolume->id,
+            'ownership_status' => 'owned',
+            'reading_status' => 'read',
+        ]);
+        $otherItem = UserPhysicalCollection::create([
+            'user_id' => $other->id,
+            'physical_volume_id' => $otherVolume->id,
+            'ownership_status' => 'owned',
+            'reading_status' => 'read',
+        ]);
+
+        Sanctum::actingAs($owner);
+
+        $this->getJson('/api/my/physical-collection')
+            ->assertOk()
+            ->assertJsonStructure(['data', 'links', 'meta'])
+            ->assertJsonFragment(['id' => $ownItem->id])
+            ->assertJsonMissing([
+                'user_id' => $other->id,
+                'physical_volume_id' => $otherItem->physical_volume_id,
+            ]);
+    }
+
+    public function test_my_digital_tracking_can_be_filtered_by_status(): void
+    {
+        $user = User::factory()->create();
+        Sanctum::actingAs($user);
+        $platform = DigitalPlatform::create(['name' => 'WEBTOON']);
+        $reading = DigitalSeries::create(['platform_id' => $platform->id, 'title' => 'Reading Series']);
+        $paused = DigitalSeries::create(['platform_id' => $platform->id, 'title' => 'Paused Series']);
+        UserDigitalTracking::create(['user_id' => $user->id, 'digital_series_id' => $reading->id, 'reading_status' => 'reading']);
+        UserDigitalTracking::create(['user_id' => $user->id, 'digital_series_id' => $paused->id, 'reading_status' => 'paused']);
+
+        $this->getJson('/api/my/digital-tracking?reading_status=paused')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.reading_status', 'paused');
+    }
+
+    public function test_my_alerts_can_be_filtered_by_status(): void
+    {
+        $user = User::factory()->create();
+        Sanctum::actingAs($user);
+        Alert::create(['user_id' => $user->id, 'alert_type' => 'system', 'title' => 'Unread', 'message' => 'Unread', 'status' => 'unread']);
+        Alert::create(['user_id' => $user->id, 'alert_type' => 'system', 'title' => 'Read', 'message' => 'Read', 'status' => 'read']);
+
+        $this->getJson('/api/my/alerts?status=read')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.status', 'read');
     }
 
     public function test_book_lookup_rejects_invalid_isbn(): void
@@ -370,8 +504,8 @@ class CatManReadersApiTest extends TestCase
             'last_episode_read' => 12,
         ])
             ->assertCreated()
-            ->assertJsonPath('user_id', $user->id)
-            ->assertJsonPath('digital_series_id', $series->id);
+            ->assertJsonPath('data.user_id', $user->id)
+            ->assertJsonPath('data.digital_series_id', $series->id);
     }
 
     public function test_authenticated_user_can_create_alert(): void
@@ -385,8 +519,8 @@ class CatManReadersApiTest extends TestCase
             'message' => 'CatManReaders is ready.',
         ])
             ->assertCreated()
-            ->assertJsonPath('user_id', $user->id)
-            ->assertJsonPath('status', 'unread');
+            ->assertJsonPath('data.user_id', $user->id)
+            ->assertJsonPath('data.status', 'unread');
     }
 
     public function test_authenticated_user_can_mark_own_alert_as_read(): void
@@ -398,12 +532,12 @@ class CatManReadersApiTest extends TestCase
             'alert_type' => 'system',
             'title' => 'Sync finished',
             'message' => 'New metadata is available.',
-        ])->json('id');
+        ])->json('data.id');
 
         $this->putJson("/api/my/alerts/{$alertId}/read")
             ->assertOk()
-            ->assertJsonPath('status', 'read')
-            ->assertJsonPath('user_id', $user->id);
+            ->assertJsonPath('data.status', 'read')
+            ->assertJsonPath('data.user_id', $user->id);
 
         $this->assertDatabaseHas('alerts', [
             'id' => $alertId,
@@ -437,13 +571,14 @@ class CatManReadersApiTest extends TestCase
         ]);
     }
 
-    private function createPhysicalVolume(): PhysicalVolume
+    private function createPhysicalVolume(string $workTitle = 'One Piece'): PhysicalVolume
     {
-        $work = Work::create(['title' => 'One Piece']);
+        $work = Work::create(['title' => $workTitle]);
 
         return PhysicalVolume::create([
             'work_id' => $work->id,
             'volume_number' => 105,
+            'title' => $workTitle.' Volume',
             'language' => 'espanol',
             'country' => 'Espana',
             'publisher' => 'Planeta Comic',

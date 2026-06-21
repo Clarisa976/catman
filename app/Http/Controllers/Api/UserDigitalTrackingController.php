@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Resources\UserDigitalTrackingResource;
 use App\Models\UserDigitalTracking;
 use Illuminate\Http\Request;
 
@@ -10,10 +11,16 @@ class UserDigitalTrackingController extends Controller
 {
     public function index(Request $request)
     {
-        return UserDigitalTracking::with('digitalSeries.platform')
+        $trackings = UserDigitalTracking::with('digitalSeries.platform')
             ->where('user_id', $request->user()->id)
+            ->when($request->query('reading_status'), fn ($query, $value) => $query->where('reading_status', $value))
+            ->when($request->query('platform_id'), fn ($query, $value) => $query->whereHas('digitalSeries', fn ($query) => $query->where('platform_id', $value)))
+            ->when($request->has('follow_updates'), fn ($query) => $query->where('follow_updates', $request->boolean('follow_updates')))
+            ->when($request->query('search'), fn ($query, $value) => $query->whereHas('digitalSeries', fn ($query) => $query->where('title', 'like', '%'.$value.'%')))
             ->latest()
-            ->paginate();
+            ->paginate($this->perPage($request));
+
+        return UserDigitalTrackingResource::collection($trackings);
     }
 
     public function store(Request $request)
@@ -22,7 +29,9 @@ class UserDigitalTrackingController extends Controller
             'user_id' => $request->user()->id,
         ]);
 
-        return response()->json($tracking->load('digitalSeries.platform'), 201);
+        return (new UserDigitalTrackingResource($tracking->load('digitalSeries.platform')))
+            ->response()
+            ->setStatusCode(201);
     }
 
     public function update(Request $request, UserDigitalTracking $tracking)
@@ -31,7 +40,7 @@ class UserDigitalTrackingController extends Controller
 
         $tracking->update($this->validateTracking($request, true));
 
-        return $tracking->fresh('digitalSeries.platform');
+        return new UserDigitalTrackingResource($tracking->fresh('digitalSeries.platform'));
     }
 
     public function destroy(Request $request, UserDigitalTracking $tracking)

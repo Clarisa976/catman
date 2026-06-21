@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Resources\DigitalPlatformResource;
 use App\Models\DigitalPlatform;
 use Illuminate\Http\Request;
 
@@ -10,7 +11,7 @@ class DigitalPlatformController extends Controller
 {
     public function index()
     {
-        return DigitalPlatform::orderBy('name')->get();
+        return DigitalPlatformResource::collection(DigitalPlatform::orderBy('name')->get());
     }
 
     public function store(Request $request)
@@ -20,12 +21,14 @@ class DigitalPlatformController extends Controller
             'website_url' => ['nullable', 'url', 'max:2048'],
         ]);
 
-        return response()->json(DigitalPlatform::create($data), 201);
+        return (new DigitalPlatformResource(DigitalPlatform::create($data)))
+            ->response()
+            ->setStatusCode(201);
     }
 
     public function show(DigitalPlatform $digitalPlatform)
     {
-        return $digitalPlatform->load('digitalSeries');
+        return new DigitalPlatformResource($digitalPlatform->load('digitalSeries'));
     }
 
     public function update(Request $request, DigitalPlatform $digitalPlatform)
@@ -37,7 +40,7 @@ class DigitalPlatformController extends Controller
 
         $digitalPlatform->update($data);
 
-        return $digitalPlatform->fresh();
+        return new DigitalPlatformResource($digitalPlatform->fresh());
     }
 
     public function destroy(DigitalPlatform $digitalPlatform)

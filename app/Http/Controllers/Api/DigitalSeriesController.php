@@ -3,36 +3,41 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Resources\DigitalSeriesResource;
 use App\Models\DigitalSeries;
 use Illuminate\Http\Request;
 
 class DigitalSeriesController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        return DigitalSeries::with(['platform', 'work'])
-            ->when(request('query'), fn ($query, $value) => $query->where('title', 'like', '%'.$value.'%'))
+        $series = DigitalSeries::with(['platform', 'work'])
+            ->when($request->query('search') ?? $request->query('query'), fn ($query, $value) => $query->where('title', 'like', '%'.$value.'%'))
             ->latest()
-            ->paginate();
+            ->paginate($this->perPage($request));
+
+        return DigitalSeriesResource::collection($series);
     }
 
     public function store(Request $request)
     {
         $series = DigitalSeries::create($this->validateSeries($request));
 
-        return response()->json($series->load(['platform', 'work']), 201);
+        return (new DigitalSeriesResource($series->load(['platform', 'work'])))
+            ->response()
+            ->setStatusCode(201);
     }
 
     public function show(DigitalSeries $digitalSeries)
     {
-        return $digitalSeries->load(['platform', 'work', 'episodes']);
+        return new DigitalSeriesResource($digitalSeries->load(['platform', 'work', 'episodes']));
     }
 
     public function update(Request $request, DigitalSeries $digitalSeries)
     {
         $digitalSeries->update($this->validateSeries($request, true));
 
-        return $digitalSeries->fresh(['platform', 'work']);
+        return new DigitalSeriesResource($digitalSeries->fresh(['platform', 'work']));
     }
 
     public function destroy(DigitalSeries $digitalSeries)

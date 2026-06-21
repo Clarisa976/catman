@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Resources\UserWorkTrackingResource;
 use App\Models\UserWorkTracking;
 use Illuminate\Http\Request;
 
@@ -10,10 +11,10 @@ class UserWorkTrackingController extends Controller
 {
     public function index(Request $request)
     {
-        return UserWorkTracking::with('work')
+        return UserWorkTrackingResource::collection(UserWorkTracking::with('work')
             ->where('user_id', $request->user()->id)
             ->latest()
-            ->paginate();
+            ->paginate($this->perPage($request)));
     }
 
     public function store(Request $request)
@@ -22,7 +23,9 @@ class UserWorkTrackingController extends Controller
             'user_id' => $request->user()->id,
         ]);
 
-        return response()->json($tracking->load('work'), 201);
+        return (new UserWorkTrackingResource($tracking->load('work')))
+            ->response()
+            ->setStatusCode(201);
     }
 
     public function update(Request $request, UserWorkTracking $tracking)
@@ -31,7 +34,7 @@ class UserWorkTrackingController extends Controller
 
         $tracking->update($this->validateTracking($request, true));
 
-        return $tracking->fresh('work');
+        return new UserWorkTrackingResource($tracking->fresh('work'));
     }
 
     public function destroy(Request $request, UserWorkTracking $tracking)

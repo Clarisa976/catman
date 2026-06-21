@@ -3,29 +3,36 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Resources\DigitalEpisodeResource;
 use App\Models\DigitalEpisode;
 use App\Models\DigitalSeries;
 use Illuminate\Http\Request;
 
 class DigitalEpisodeController extends Controller
 {
-    public function index(DigitalSeries $digitalSeries)
+    public function index(Request $request, DigitalSeries $digitalSeries)
     {
-        return $digitalSeries->episodes()->orderBy('episode_number')->paginate();
+        return DigitalEpisodeResource::collection(
+            $digitalSeries->episodes()
+                ->orderBy('episode_number')
+                ->paginate($this->perPage($request))
+        );
     }
 
     public function store(Request $request, DigitalSeries $digitalSeries)
     {
         $episode = $digitalSeries->episodes()->create($this->validateEpisode($request));
 
-        return response()->json($episode, 201);
+        return (new DigitalEpisodeResource($episode))
+            ->response()
+            ->setStatusCode(201);
     }
 
     public function update(Request $request, DigitalEpisode $digitalEpisode)
     {
         $digitalEpisode->update($this->validateEpisode($request, true));
 
-        return $digitalEpisode->fresh('digitalSeries');
+        return new DigitalEpisodeResource($digitalEpisode->fresh('digitalSeries'));
     }
 
     public function destroy(DigitalEpisode $digitalEpisode)

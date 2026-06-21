@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Resources\UserPhysicalCollectionResource;
 use App\Models\UserPhysicalCollection;
 use Illuminate\Http\Request;
 
@@ -10,10 +11,26 @@ class UserPhysicalCollectionController extends Controller
 {
     public function index(Request $request)
     {
-        return UserPhysicalCollection::with('physicalVolume.work')
+        $items = UserPhysicalCollection::with('physicalVolume.work')
             ->where('user_id', $request->user()->id)
+            ->when($request->query('ownership_status'), fn ($query, $value) => $query->where('ownership_status', $value))
+            ->when($request->query('reading_status'), fn ($query, $value) => $query->where('reading_status', $value))
+            ->when($request->has('is_travel_memory'), fn ($query) => $query->where('is_travel_memory', $request->boolean('is_travel_memory')))
+            ->when($request->query('language'), fn ($query, $value) => $query->whereHas('physicalVolume', fn ($query) => $query->where('language', $value)))
+            ->when($request->query('country'), fn ($query, $value) => $query->whereHas('physicalVolume', fn ($query) => $query->where('country', $value)))
+            ->when($request->query('search'), function ($query, $value): void {
+                $query->whereHas('physicalVolume', function ($query) use ($value): void {
+                    $query
+                        ->where('title', 'like', '%'.$value.'%')
+                        ->orWhere('isbn', 'like', '%'.$value.'%')
+                        ->orWhere('ean', 'like', '%'.$value.'%')
+                        ->orWhereHas('work', fn ($query) => $query->where('title', 'like', '%'.$value.'%'));
+                });
+            })
             ->latest()
-            ->paginate();
+            ->paginate($this->perPage($request));
+
+        return UserPhysicalCollectionResource::collection($items);
     }
 
     public function store(Request $request)
@@ -22,7 +39,9 @@ class UserPhysicalCollectionController extends Controller
             'user_id' => $request->user()->id,
         ]);
 
-        return response()->json($item->load('physicalVolume.work'), 201);
+        return (new UserPhysicalCollectionResource($item->load('physicalVolume.work')))
+            ->response()
+            ->setStatusCode(201);
     }
 
     public function update(Request $request, UserPhysicalCollection $item)
@@ -31,7 +50,7 @@ class UserPhysicalCollectionController extends Controller
 
         $item->update($this->validateItem($request, true));
 
-        return $item->fresh('physicalVolume.work');
+        return new UserPhysicalCollectionResource($item->fresh('physicalVolume.work'));
     }
 
     public function destroy(Request $request, UserPhysicalCollection $item)
