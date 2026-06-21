@@ -3,34 +3,56 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Resources\PhysicalVolumeResource;
 use App\Models\PhysicalVolume;
 use App\Models\Work;
 use Illuminate\Http\Request;
 
 class PhysicalVolumeController extends Controller
 {
-    public function index(Work $work)
+    public function index(Request $request, Work $work)
     {
-        return $work->physicalVolumes()->orderBy('volume_number')->paginate();
+        $volumes = $work->physicalVolumes()
+            ->with('work')
+            ->when($request->query('search'), function ($query, $value): void {
+                $query->where(function ($query) use ($value): void {
+                    $query
+                        ->where('title', 'like', '%'.$value.'%')
+                        ->orWhere('isbn', 'like', '%'.$value.'%')
+                        ->orWhere('ean', 'like', '%'.$value.'%');
+                });
+            })
+            ->when($request->query('work_id'), fn ($query, $value) => $query->where('work_id', $value))
+            ->when($request->query('language'), fn ($query, $value) => $query->where('language', $value))
+            ->when($request->query('country'), fn ($query, $value) => $query->where('country', $value))
+            ->when($request->query('publisher'), fn ($query, $value) => $query->where('publisher', 'like', '%'.$value.'%'))
+            ->when($request->query('release_from'), fn ($query, $value) => $query->whereDate('release_date', '>=', $value))
+            ->when($request->query('release_to'), fn ($query, $value) => $query->whereDate('release_date', '<=', $value))
+            ->orderBy('volume_number')
+            ->paginate($this->perPage($request));
+
+        return PhysicalVolumeResource::collection($volumes);
     }
 
     public function store(Request $request, Work $work)
     {
         $volume = $work->physicalVolumes()->create($this->validateVolume($request));
 
-        return response()->json($volume, 201);
+        return (new PhysicalVolumeResource($volume))
+            ->response()
+            ->setStatusCode(201);
     }
 
     public function show(PhysicalVolume $physicalVolume)
     {
-        return $physicalVolume->load('work');
+        return new PhysicalVolumeResource($physicalVolume->load('work'));
     }
 
     public function update(Request $request, PhysicalVolume $physicalVolume)
     {
         $physicalVolume->update($this->validateVolume($request, true));
 
-        return $physicalVolume->fresh('work');
+        return new PhysicalVolumeResource($physicalVolume->fresh('work'));
     }
 
     public function destroy(PhysicalVolume $physicalVolume)

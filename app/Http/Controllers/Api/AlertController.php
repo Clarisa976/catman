@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Resources\AlertResource;
 use App\Models\Alert;
 use Illuminate\Http\Request;
 
@@ -10,11 +11,14 @@ class AlertController extends Controller
 {
     public function index(Request $request)
     {
-        return Alert::with(['work', 'physicalVolume', 'digitalSeries', 'digitalEpisode'])
+        $alerts = Alert::with(['work', 'physicalVolume', 'digitalSeries', 'digitalEpisode'])
             ->where('user_id', $request->user()->id)
             ->when($request->query('status'), fn ($query, $status) => $query->where('status', $status))
+            ->when($request->query('alert_type'), fn ($query, $type) => $query->where('alert_type', $type))
             ->latest()
-            ->paginate();
+            ->paginate($this->perPage($request));
+
+        return AlertResource::collection($alerts);
     }
 
     public function store(Request $request)
@@ -35,7 +39,9 @@ class AlertController extends Controller
             'status' => $data['status'] ?? 'unread',
         ]);
 
-        return response()->json($alert, 201);
+        return (new AlertResource($alert))
+            ->response()
+            ->setStatusCode(201);
     }
 
     public function markRead(Request $request, Alert $alert)
@@ -47,7 +53,7 @@ class AlertController extends Controller
             'read_at' => now(),
         ]);
 
-        return $alert->fresh();
+        return new AlertResource($alert->fresh());
     }
 
     public function dismiss(Request $request, Alert $alert)
@@ -56,7 +62,7 @@ class AlertController extends Controller
 
         $alert->update(['status' => 'dismissed']);
 
-        return $alert->fresh();
+        return new AlertResource($alert->fresh());
     }
 
     public function destroy(Request $request, Alert $alert)
