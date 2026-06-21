@@ -2,12 +2,14 @@
 
 namespace Tests\Feature;
 
+use App\Models\Alert;
 use App\Models\DigitalPlatform;
 use App\Models\DigitalSeries;
 use App\Models\PhysicalVolume;
 use App\Models\User;
 use App\Models\UserPhysicalCollection;
 use App\Models\Work;
+use Database\Seeders\DigitalPlatformSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
@@ -144,6 +146,65 @@ class CatManReadersApiTest extends TestCase
         ])->assertNotFound();
     }
 
+    public function test_authenticated_user_can_create_work_tracking(): void
+    {
+        $user = User::factory()->create();
+        Sanctum::actingAs($user);
+        $work = Work::create(['title' => 'Slam Dunk']);
+
+        $this->postJson('/api/my/work-tracking', [
+            'work_id' => $work->id,
+            'follow_physical_releases' => true,
+            'preferred_language' => 'espanol',
+            'preferred_country' => 'Espana',
+            'last_owned_volume_number' => 4,
+        ])
+            ->assertCreated()
+            ->assertJsonPath('user_id', $user->id)
+            ->assertJsonPath('work_id', $work->id)
+            ->assertJsonPath('last_owned_volume_number', '4.00');
+
+        $this->assertDatabaseHas('user_work_trackings', [
+            'user_id' => $user->id,
+            'work_id' => $work->id,
+        ]);
+    }
+
+    public function test_authenticated_user_can_list_seeded_digital_platforms(): void
+    {
+        $this->seed(DigitalPlatformSeeder::class);
+        Sanctum::actingAs(User::factory()->create());
+
+        $this->getJson('/api/digital-platforms')
+            ->assertOk()
+            ->assertJsonFragment(['name' => 'Manta'])
+            ->assertJsonFragment(['name' => 'WEBTOON']);
+    }
+
+    public function test_authenticated_user_can_create_digital_series(): void
+    {
+        Sanctum::actingAs(User::factory()->create());
+        $platform = DigitalPlatform::create(['name' => 'Tapas']);
+
+        $this->postJson('/api/digital-series', [
+            'platform_id' => $platform->id,
+            'title' => 'A Business Proposal',
+            'platform_url' => 'https://tapas.io/series/a-business-proposal',
+            'language' => 'ingles',
+            'status' => 'completed',
+            'latest_episode_detected' => 125,
+        ])
+            ->assertCreated()
+            ->assertJsonPath('platform_id', $platform->id)
+            ->assertJsonPath('title', 'A Business Proposal')
+            ->assertJsonPath('latest_episode_detected', '125.00');
+
+        $this->assertDatabaseHas('digital_series', [
+            'platform_id' => $platform->id,
+            'title' => 'A Business Proposal',
+        ]);
+    }
+
     public function test_authenticated_user_can_create_digital_tracking(): void
     {
         $user = User::factory()->create();
@@ -200,6 +261,31 @@ class CatManReadersApiTest extends TestCase
             'id' => $alertId,
             'user_id' => $user->id,
             'status' => 'read',
+        ]);
+    }
+
+    public function test_user_cannot_mark_another_users_alert_as_read(): void
+    {
+        $owner = User::factory()->create();
+        $other = User::factory()->create();
+        $alert = Alert::create([
+            'user_id' => $owner->id,
+            'alert_type' => 'system',
+            'title' => 'Private alert',
+            'message' => 'Only the owner can read this.',
+            'status' => 'unread',
+        ]);
+
+        Sanctum::actingAs($other);
+
+        $this->putJson("/api/my/alerts/{$alert->id}/read")
+            ->assertNotFound();
+
+        $this->assertDatabaseHas('alerts', [
+            'id' => $alert->id,
+            'user_id' => $owner->id,
+            'status' => 'unread',
+            'read_at' => null,
         ]);
     }
 
