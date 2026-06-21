@@ -24,11 +24,7 @@ class BookLookupService
      */
     public function lookupByIsbn(string $isbn): array
     {
-        $isbn = $this->cleanCode($isbn);
-
-        if (! in_array(strlen($isbn), [10, 13], true)) {
-            throw new InvalidArgumentException('ISBN/EAN must be 10 or 13 digits.');
-        }
+        $isbn = IsbnCode::normalizeAndValidate($isbn);
 
         return $this->runProviders('isbn', $isbn, fn (BookMetadataProviderInterface $provider) => $provider->lookupByIsbn($isbn));
     }
@@ -57,31 +53,37 @@ class BookLookupService
     public function import(array $payload, int $userId): array
     {
         return DB::transaction(function () use ($payload, $userId): array {
-            $work = Work::firstOrCreate(
-                [
+            $payload = $this->normalizeImportPayload($payload);
+            $author = collect($payload['authors'] ?? [])->first();
+
+            $work = Work::query()
+                ->where('title', $payload['title'])
+                ->when($author, fn ($query) => $query->where('author', $author))
+                ->first();
+
+            if (! $work) {
+                $work = Work::create([
                     'title' => $payload['title'],
-                    'author' => collect($payload['authors'] ?? [])->first(),
-                ],
-                [
                     'original_title' => $payload['original_title'] ?? null,
+                    'author' => $author,
                     'cover_url' => $payload['cover_url'] ?? null,
                     'type' => $payload['work_type'] ?? 'manga',
                     'status' => 'unknown',
-                ],
-            );
+                ]);
+            }
 
-            $volume = PhysicalVolume::firstOrCreate(
-                [
+            $volume = $this->findExistingVolume($work, $payload);
+
+            if (! $volume) {
+                $volume = PhysicalVolume::create([
                     'work_id' => $work->id,
                     'volume_number' => $payload['volume_number'] ?? 1,
+                    'title' => $payload['volume_title'] ?? null,
                     'language' => $payload['language'] ?? 'espanol',
                     'country' => $payload['country'] ?? 'Espana',
                     'publisher' => $payload['publisher'] ?? null,
-                    'isbn' => $payload['isbn_13'] ?? $payload['isbn_10'] ?? null,
-                    'ean' => $payload['ean'] ?? $payload['isbn_13'] ?? null,
-                ],
-                [
-                    'title' => $payload['volume_title'] ?? null,
+                    'isbn' => $payload['isbn'] ?? null,
+                    'ean' => $payload['ean'] ?? null,
                     'release_date' => $this->normalizeDate($payload['published_date'] ?? null),
                     'cover_url' => $payload['cover_url'] ?? null,
                     'metadata_source' => $payload['provider'] ?? 'manual',
@@ -89,8 +91,8 @@ class BookLookupService
                     'metadata_url' => $payload['provider_url'] ?? null,
                     'metadata_fetched_at' => now(),
                     'raw_metadata' => $payload['raw_data'] ?? null,
-                ],
-            );
+                ]);
+            }
 
             $collectionItem = null;
 
@@ -114,11 +116,6 @@ class BookLookupService
                 'collection_item' => $collectionItem?->fresh('physicalVolume'),
             ];
         });
-    }
-
-    private function cleanCode(string $value): string
-    {
-        return preg_replace('/[^0-9Xx]/', '', $value) ?? '';
     }
 
     private function normalizeDate(?string $value): ?string
@@ -147,18 +144,21 @@ class BookLookupService
                     ->first();
 
                 if ($cached) {
-                    return $cached->normalized_result ?? [];
+                    return $cached->success ? ($cached->normalized_result ?? []) : [];
                 }
 
                 try {
-                    $results = $callback($provider);
+                    $results = collect($callback($provider))
+                        ->map(fn (array $result): array => BookMetadataNormalizer::normalize($result, $provider->name()))
+                        ->values()
+                        ->all();
 
                     BookMetadataLookup::create([
                         'provider' => $provider->name(),
                         'lookup_type' => $lookupType,
                         'lookup_value' => $lookupValue,
                         'normalized_result' => $results,
-                        'raw_response' => null,
+                        'raw_response' => collect($results)->pluck('raw_data')->all(),
                         'success' => true,
                         'fetched_at' => now(),
                     ]);
@@ -179,5 +179,56 @@ class BookLookupService
             })
             ->values()
             ->all();
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     *
+     * @return array<string, mixed>
+     */
+    private function normalizeImportPayload(array $payload): array
+    {
+        foreach (['isbn_10', 'isbn_13', 'ean'] as $key) {
+            if (! empty($payload[$key])) {
+                $payload[$key] = IsbnCode::normalizeAndValidate((string) $payload[$key]);
+            }
+        }
+
+        $payload['isbn'] = $payload['isbn_13'] ?? $payload['isbn_10'] ?? null;
+        $payload['ean'] = $payload['ean'] ?? $payload['isbn_13'] ?? null;
+
+        return $payload;
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     */
+    private function findExistingVolume(Work $work, array $payload): ?PhysicalVolume
+    {
+        $isbn = $payload['isbn'] ?? null;
+        $ean = $payload['ean'] ?? null;
+
+        if ($isbn || $ean) {
+            $volume = PhysicalVolume::query()
+                ->where(function ($query) use ($isbn, $ean): void {
+                    $query
+                        ->when($isbn, fn ($query) => $query->orWhere('isbn', $isbn))
+                        ->when($ean, fn ($query) => $query->orWhere('ean', $ean));
+                })
+                ->first();
+
+            if ($volume) {
+                return $volume;
+            }
+        }
+
+        return PhysicalVolume::query()
+            ->where('work_id', $work->id)
+            ->where('volume_number', $payload['volume_number'] ?? 1)
+            ->where('language', $payload['language'] ?? 'espanol')
+            ->where('country', $payload['country'] ?? 'Espana')
+            ->where('publisher', $payload['publisher'] ?? null)
+            ->where('edition_name', $payload['edition_name'] ?? null)
+            ->first();
     }
 }

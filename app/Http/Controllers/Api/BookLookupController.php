@@ -75,6 +75,10 @@ class BookLookupController extends Controller
             'purchase_country' => ['nullable', 'string', 'max:80'],
         ]);
 
-        return response()->json($this->lookup->import($data, $request->user()->id), 201);
+        try {
+            return response()->json($this->lookup->import($data, $request->user()->id), 201);
+        } catch (InvalidArgumentException $exception) {
+            return response()->json(['message' => $exception->getMessage()], 422);
+        }
     }
 }
